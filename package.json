@@ -1,0 +1,13 @@
+{
+  "name": "selfmail",
+  "version": "1.0.0",
+  "description": "Self-hosted mail server with a web UI, for home servers that cannot open port 25",
+  "main": "server.js",
+  "type": "commonjs",
+  "license": "MIT",
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "express": "^4.21.2",
+    "nodemailer": "^6.9.16"
+  }
+}

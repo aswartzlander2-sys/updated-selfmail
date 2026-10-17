@@ -1,0 +1,20 @@
+services:
+  selfmail:
+    build: .
+    container_name: selfmail
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      - MAIL_MAILER=smtp
+      - MAIL_HOST=mailserver
+      - MAIL_PORT=25
+      - MAIL_USERNAME=test3@robo-universe.com
+      - MAIL_PASSWORD=your_secure_password
+    networks:
+      - default
+
+networks:
+  default:
+    name: mailserver_default
+    external: true

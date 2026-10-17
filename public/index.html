@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>selfmail</title>
+<style>
+*{box-sizing:border-box}
+:root{--bg:#0e1116;--panel:#161b22;--line:#2a313c;--fg:#e6edf3;--dim:#8b949e;--acc:#4c8dff;--ok:#3fb950;--bad:#f85149;--warn:#d29922}
+body{margin:0;font:14px/1.5 ui-sans-serif,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--fg)}
+header{padding:16px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+h1{font-size:16px;margin:0;font-weight:600}
+.pill{font-size:11px;padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--dim)}
+nav{display:flex;gap:2px;padding:0 14px;border-bottom:1px solid var(--line);overflow-x:auto}
+nav button{background:none;border:0;color:var(--dim);padding:11px 15px;cursor:pointer;font:inherit;border-bottom:2px solid transparent;white-space:nowrap}
+nav button.on{color:var(--fg);border-bottom-color:var(--acc)}
+main{padding:22px;max-width:960px}
+section{display:none}section.on{display:block}
+label{display:block;font-size:12px;color:var(--dim);margin:14px 0 5px;text-transform:uppercase;letter-spacing:.5px}
+input,textarea,select{width:100%;background:var(--panel);border:1px solid var(--line);color:var(--fg);border-radius:7px;padding:9px 11px;font:inherit}
+textarea{min-height:180px;resize:vertical;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px}
+input:focus,textarea:focus,select:focus{outline:none;border-color:var(--acc)}
+button.go{background:var(--acc);border:0;color:#fff;padding:10px 20px;border-radius:7px;font:inherit;font-weight:600;cursor:pointer;margin-top:18px}
+button.go:disabled{opacity:.5;cursor:default}
+button.ghost{background:var(--panel);border:1px solid var(--line);color:var(--fg);padding:8px 14px;border-radius:7px;cursor:pointer;font:inherit}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:640px){.row{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:14px 16px;margin-bottom:12px}
+.dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;display:inline-block}
+.dot.ok{background:var(--ok)}.dot.bad{background:var(--bad)}.dot.warn{background:var(--warn)}
+pre{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:13px;overflow:auto;font-size:12px;max-height:440px;white-space:pre-wrap;word-break:break-word}
+.msg{margin-top:15px;padding:11px 13px;border-radius:7px;font-size:13px;display:none}
+.msg.ok{display:block;background:#0d2818;border:1px solid var(--ok);color:#7ee787}
+.msg.err{display:block;background:#2d0f0f;border:1px solid var(--bad);color:#ffa198}
+.hint{font-size:12px;color:var(--dim);margin-top:6px}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;word-break:break-all}
+table{width:100%;border-collapse:collapse;font-size:13px}
+td,th{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+.val{background:#0b0e13;border:1px solid var(--line);border-radius:6px;padding:7px 9px;margin-top:4px}
+.copy{background:none;border:1px solid var(--line);color:var(--dim);border-radius:5px;font-size:11px;padding:2px 7px;cursor:pointer;margin-left:6px}
+
+/* --- inbox rows --------------------------------------------------- */
+.mrow{display:grid;grid-template-columns:10px minmax(110px,190px) 1fr auto 28px;gap:14px;align-items:center;
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:13px 16px;margin-bottom:8px;
+  cursor:pointer;transition:background .12s ease,border-color .12s ease}
+.mrow:hover{background:#1b2331;border-color:#3a4457}
+.mrow.unread{background:#131c29;border-color:#2e3a4e}
+.mrow.unread .mfrom,.mrow.unread .msubj{font-weight:600;color:var(--fg)}
+.mdot{width:8px;height:8px;border-radius:50%;background:transparent}
+.mrow.unread .mdot{background:var(--acc)}
+.mfrom,.msubj{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.mfrom{color:var(--dim)}
+.msubj{color:var(--fg)}
+.msnip{color:var(--dim);font-weight:400}
+.mdate{font-size:12px;color:var(--dim);white-space:nowrap}
+.mdel{background:none;border:0;color:var(--dim);cursor:pointer;padding:5px 7px;border-radius:7px;
+  opacity:0;font-size:13px;line-height:1;transition:opacity .12s,background .12s,color .12s}
+.mrow:hover .mdel,.mrow:focus-within .mdel{opacity:1}
+.mdel:hover{background:#3a1f22;color:var(--bad)}
+@media(max-width:700px){
+  .mrow{grid-template-columns:10px 1fr auto 28px;row-gap:4px}
+  .mfrom{grid-column:2/4;order:2}
+  .msubj{grid-column:2/4;order:1}
+  .msnip{display:none}
+  .mdel{opacity:1}
+}
+
+/* --- message read pane -------------------------------------------- */
+.readhead{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.avatar{width:40px;height:40px;flex:0 0 auto;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;font-weight:600;color:#fff;font-size:16px}
+.readfrom{font-weight:600;font-size:14px}
+.readmeta{font-size:12px;color:var(--dim)}
+.readactions{margin-left:auto;display:flex;gap:8px}
+.readbody{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:2px 4px;overflow:hidden}
+.readbody iframe{width:100%;border:0;display:block;background:#fff;border-radius:10px}
+.readbody pre{border:0;background:none;margin:0;padding:16px;max-height:none}
+.chip{font-size:11px;padding:3px 10px;border-radius:99px;border:1px solid var(--line);color:var(--dim);
+  display:inline-flex;align-items:center;gap:5px}
+.chip.ok{color:#7ee787;border-color:#1c5c30}
+.chip.warn{color:#e3b341;border-color:#6b5411}
+</style></head><body>
+
+<header>
+  <h1>selfmail</h1>
+  <span class="pill" id="hdrDomain">&mdash;</span>
+  <span class="pill" id="hdrMode">&mdash;</span>
+</header>
+
+<nav>
+  <button class="on" data-t="compose">Compose</button>
+  <button data-t="inbox">Inbox <span id="unreadBadge"></span></button>
+  <button data-t="dns">DNS</button>
+  <button data-t="status">Status</button>
+  <button data-t="settings">Settings</button>
+  <button data-t="sent">Sent</button>
+  <button data-t="log">Log</button>
+</nav>
+
+<main>
+  <section id="compose" class="on">
+    <div class="row">
+      <div><label>From</label><input id="cFrom"><div class="hint" id="fromHint"></div></div>
+      <div><label>Reply-To (optional)</label><input id="cReply"></div>
+    </div>
+    <label>To <span style="text-transform:none;letter-spacing:0">&mdash; comma-separate for multiple</span></label>
+    <input id="cTo">
+    <label>Subject</label><input id="cSubj">
+    <label>Body</label><textarea id="cBody"></textarea>
+    <label style="display:flex;align-items:center;gap:8px;text-transform:none;margin-top:12px">
+      <input type="checkbox" id="cHtml" style="width:auto"> Send body as HTML
+    </label>
+    <button class="go" id="sendBtn">Send</button>
+    <div class="msg" id="sendMsg"></div>
+  </section>
+
+  <section id="inbox">
+    <button class="ghost" id="refInbox">Refresh</button>
+    <span class="hint" id="inboxCount" style="margin-left:10px"></span>
+    <div id="addrCard" style="margin-top:14px"></div>
+    <div id="msgList" style="margin-top:14px"></div>
+    <div id="msgView" style="display:none">
+      <button class="ghost" id="backToList" style="margin-bottom:14px">&larr; Back to inbox</button>
+      <div style="font-size:20px;font-weight:600;margin-bottom:14px" id="mvSubject"></div>
+      <div class="readhead">
+        <div class="avatar" id="mvAvatar"></div>
+        <div style="min-width:0">
+          <div class="readfrom" id="mvFrom"></div>
+          <div class="readmeta" id="mvMeta"></div>
+        </div>
+        <div class="readactions">
+          <button class="ghost" id="replyBtn">&#8617; Reply</button>
+          <button class="ghost" id="mvDel">Delete</button>
+        </div>
+      </div>
+      <div id="mvAuth" style="margin-bottom:12px"></div>
+      <div class="readbody" id="mvBodyWrap"></div>
+    </div>
+  </section>
+
+  <section id="dns">
+    <div class="card">
+      <strong style="font-size:13px">DNS records</strong>
+      <div class="hint" style="margin-top:4px">
+        Add every record below at whatever host runs DNS for your domain, then press
+        <b>Check records</b>. Names are shown in full &mdash; most control panels want only the
+        part before your domain, and will append the rest for you.
+      </div>
+      <div style="margin-top:12px">
+        <button class="go" id="checkBtn" style="margin-top:0">Check records</button>
+        <span id="checkSummary" class="hint" style="margin-left:12px"></span>
+      </div>
+    </div>
+    <div id="dnsList"></div>
+  </section>
+
+  <section id="status">
+    <button class="ghost" id="refStatus">Refresh</button>
+    <div class="card" id="svcCard" style="margin-top:14px"></div>
+    <div class="card"><strong style="font-size:13px">Mail queue</strong><pre id="q" style="margin:10px 0 0"></pre></div>
+  </section>
+
+  <section id="settings">
+    <div class="row">
+      <div><label>Mail domain</label><input id="sDomain"></div>
+      <div><label>Server hostname (HELO)</label><input id="sMxhost"></div>
+    </div>
+    <div class="row">
+      <div><label>Public IP</label><input id="sPublicIp"></div>
+      <div><label>DKIM selector</label><input id="sSelector"></div>
+    </div>
+    <div class="row">
+      <div><label>Mailbox name</label><input id="sMailbox"><div class="hint">The part before the @</div></div>
+      <div><label>Display name</label><input id="sFromName"></div>
+    </div>
+    <div class="row">
+      <div><label>Default To</label><input id="sDefaultTo"></div>
+      <div><label>DMARC report address</label><input id="sDmarcRua" placeholder="blank = reports off">
+        <div class="hint">Only for XML reports &mdash; not where your mail goes.</div></div>
+    </div>
+    <div class="row">
+      <div><label>DMARC policy</label>
+        <select id="sDmarcPolicy"><option value="none">none</option><option value="quarantine">quarantine</option><option value="reject">reject</option></select></div>
+      <div><label>Inbound mode</label>
+        <select id="sMode"><option value="direct">direct (this host owns port 25)</option><option value="relay">relay (webhook)</option></select></div>
+    </div>
+    <label>Public webhook URL <span style="text-transform:none;letter-spacing:0">&mdash; relay mode only</span></label>
+    <input id="sWebhookUrl" placeholder="https://your-tunnel-host/inbound/SECRET">
+    <button class="go" id="saveBtn">Save settings</button>
+    <div class="msg" id="setMsg"></div>
+  </section>
+
+  <section id="sent">
+    <button class="ghost" id="refSent">Refresh</button>
+    <table style="margin-top:14px"><thead><tr><th>When</th><th>To</th><th>Subject</th><th>Result</th></tr></thead><tbody id="sentRows"></tbody></table>
+  </section>
+
+  <section id="log">
+    <button class="ghost" id="refLog">Refresh</button>
+    <pre id="logBox" style="margin-top:14px"></pre>
+  </section>
+</main>
+
+<script>
+var $ = function (s) { return document.querySelector(s); };
+function j(u, o) { return fetch(u, o).then(function (r) { return r.json().then(function (b) { return { ok: r.ok, b: b }; }); }); }
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+  });
+}
+var CFG = {};
+
+Array.prototype.forEach.call(document.querySelectorAll('nav button'), function (b) {
+  b.onclick = function () {
+    Array.prototype.forEach.call(document.querySelectorAll('nav button'), function (x) { x.classList.toggle('on', x === b); });
+    Array.prototype.forEach.call(document.querySelectorAll('section'), function (s) { s.classList.toggle('on', s.id === b.dataset.t); });
+    if (b.dataset.t === 'inbox') loadInbox();
+    if (b.dataset.t === 'status') loadStatus();
+    if (b.dataset.t === 'sent') loadSent();
+    if (b.dataset.t === 'log') loadLog();
+    if (b.dataset.t === 'dns') loadDns();
+  };
+});
+$('#refInbox').onclick = function () { loadInbox(); };
+$('#refStatus').onclick = function () { loadStatus(); };
+$('#refSent').onclick = function () { loadSent(); };
+$('#refLog').onclick = function () { loadLog(); };
+
+function loadCfg() {
+  return j('/api/settings').then(function (r) {
+    CFG = r.b;
+    $('#hdrDomain').textContent = '@' + (CFG.domain || 'unconfigured');
+    $('#hdrMode').textContent = CFG.mode === 'relay' ? 'relay mode' : 'direct mode';
+    $('#sDomain').value = CFG.domain; $('#sMxhost').value = CFG.mxhost;
+    $('#sPublicIp').value = CFG.publicIp; $('#sSelector').value = CFG.selector;
+    $('#sMailbox').value = CFG.mailbox; $('#sFromName').value = CFG.fromName;
+    $('#sDefaultTo').value = CFG.defaultTo; $('#sDmarcRua').value = CFG.dmarcRua;
+    $('#sDmarcPolicy').value = CFG.dmarcPolicy; $('#sMode').value = CFG.mode;
+    $('#sWebhookUrl').value = CFG.webhookUrl || '';
+    if (!$('#cFrom').value) $('#cFrom').value = CFG.mailbox + '@' + CFG.domain;
+    if (!$('#cTo').value) $('#cTo').value = CFG.defaultTo;
+    $('#fromHint').textContent = 'Must be @' + CFG.domain + ' to be DKIM-signed';
+  });
+}
+
+$('#saveBtn').onclick = function () {
+  var body = {
+    domain: $('#sDomain').value, mxhost: $('#sMxhost').value, publicIp: $('#sPublicIp').value,
+    selector: $('#sSelector').value, mailbox: $('#sMailbox').value, fromName: $('#sFromName').value,
+    defaultTo: $('#sDefaultTo').value, dmarcRua: $('#sDmarcRua').value,
+    dmarcPolicy: $('#sDmarcPolicy').value, mode: $('#sMode').value, webhookUrl: $('#sWebhookUrl').value
+  };
+  j('/api/settings', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+    .then(function (r) {
+      var m = $('#setMsg');
+      m.className = 'msg ' + (r.ok ? 'ok' : 'err');
+      m.textContent = r.ok ? 'Saved. The DNS tab now reflects these values.' : 'Save failed';
+      return loadCfg();
+    });
+};
+
+$('#sendBtn').onclick = function () {
+  var btn = $('#sendBtn'); btn.disabled = true; btn.textContent = 'Sending...';
+  var body = { from: $('#cFrom').value, to: $('#cTo').value, subject: $('#cSubj').value };
+  if ($('#cReply').value) body.replyTo = $('#cReply').value;
+  if ($('#cHtml').checked) { body.html = $('#cBody').value; } else { body.text = $('#cBody').value; }
+  if (REPLY_TO_MSGID) { body.inReplyTo = REPLY_TO_MSGID; body.references = REPLY_REFS; }
+  j('/api/send', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+    .then(function (r) {
+      var m = $('#sendMsg');
+      m.className = 'msg ' + (r.ok ? 'ok' : 'err');
+      if (r.ok) {
+        m.textContent = (r.b.via === 'sendmail' ? 'Queued locally - ' : 'Accepted by Postfix - ') + (r.b.response || '');
+        REPLY_TO_MSGID = ''; REPLY_REFS = '';
+      } else {
+        m.textContent = 'Failed: ' + (r.b.error || 'unknown') + (r.b.diagnosis ? '  ' + r.b.diagnosis : '');
+      }
+      btn.disabled = false; btn.textContent = 'Send';
+    });
+};
+
+// --- DNS tab ---------------------------------------------------------
+var LAST_CHECK = {};
+
+function loadDns() {
+  return j('/api/dns-records').then(function (r) {
+    $('#dnsList').innerHTML = r.b.map(function (x) {
+      var chk = LAST_CHECK[x.key];
+      var badge = '';
+      if (chk) {
+        badge = '<span class="dot ' + (chk.ok ? 'ok' : 'bad') + '" style="margin-right:6px"></span>' +
+                '<span class="hint">' + (chk.ok ? 'found' : 'missing or wrong') + '</span>';
+      }
+      return '<div class="card">' +
+        '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+        '<span class="mono" style="font-size:13px;color:var(--acc)">' + esc(x.type) + '</span>' +
+        '<span class="mono" style="font-size:13px">' + esc(x.name) + '</span>' +
+        (x.priority ? '<span class="hint">priority ' + x.priority + '</span>' : '') +
+        '<span style="margin-left:auto">' + badge + '</span></div>' +
+        '<div class="val mono" id="v_' + esc(x.key) + '">' + esc(x.content) + '</div>' +
+        '<div class="hint">' + esc(x.note || '') +
+        (chk && !chk.ok && chk.found ? '<br>Currently resolves to: <span class="mono">' + esc(chk.found) + '</span>' : '') +
+        (chk && !chk.ok && chk.detail ? '<br>' + esc(chk.detail) : '') +
+        '</div></div>';
+    }).join('');
+  });
+}
+
+$('#checkBtn').onclick = function () {
+  var b = $('#checkBtn'); b.disabled = true; b.textContent = 'Checking...';
+  $('#checkSummary').textContent = 'querying public DNS...';
+  j('/api/dns-check').then(function (r) {
+    LAST_CHECK = {};
+    r.b.records.forEach(function (x) { LAST_CHECK[x.key] = x; });
+    $('#checkSummary').innerHTML = r.b.allGood
+      ? '<span class="dot ok"></span> all ' + r.b.total + ' records correct'
+      : '<span class="dot bad"></span> ' + r.b.ok + ' of ' + r.b.total + ' correct - see below';
+    b.disabled = false; b.textContent = 'Check records';
+    loadDns();
+  }).catch(function () {
+    $('#checkSummary').textContent = 'check failed';
+    b.disabled = false; b.textContent = 'Check records';
+  });
+};
+
+// --- inbox -----------------------------------------------------------
+var STATE_LABEL = {
+  relay: ['ok', 'receiving via relay'],
+  direct: ['ok', 'direct to this host'],
+  'no-mx': ['bad', 'no MX record']
+};
+
+function loadAddresses() {
+  return j('/api/addresses').then(function (r) {
+    var doms = r.b || [];
+    if (!doms.length) { $('#addrCard').innerHTML = ''; return; }
+    $('#addrCard').innerHTML = '<div class="card"><strong style="font-size:13px">Send mail to these addresses</strong>' +
+      '<div class="hint" style="margin-top:4px">Anything delivered to them lands in this inbox.</div>' +
+      doms.map(function (d) {
+        var st = STATE_LABEL[d.reachable] || ['warn', d.reachable];
+        var addrs = d.addresses.slice();
+        if (d.catchAll) addrs.push('anything@' + d.domain);
+        return '<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">' +
+          '<div style="display:flex;align-items:center;gap:8px"><span class="dot ' + st[0] + '"></span>' +
+          '<span class="mono" style="font-size:13px">@' + esc(d.domain) + '</span>' +
+          '<span class="hint" style="margin-left:auto">' + esc(st[1]) + '</span></div>' +
+          '<div style="margin-top:8px">' + addrs.map(function (a) {
+            return '<div class="mono" style="font-size:13px;padding:3px 0;color:var(--acc)">' + esc(a) + '</div>';
+          }).join('') + '</div><div class="hint" style="margin-top:6px">' + esc(d.note) + '</div></div>';
+      }).join('') + '</div>';
+  });
+}
+
+$('#replyBtn') && ($('#replyBtn').onclick = function () { startReply(); });
+$('#mvDel') && ($('#mvDel').onclick = function () {
+  if (CURRENT_ID) { var id = CURRENT_ID; $('#msgView').style.display = 'none'; deleteMsg(id, null); }
+});
+$('#backToList').onclick = function () {
+  $('#msgView').style.display = 'none';
+  $('#msgList').style.display = ''; $('#refInbox').style.display = '';
+  $('#inboxCount').style.display = ''; $('#addrCard').style.display = '';
+};
+
+// Messages carry Date headers in whatever timezone the sender used, which
+// makes a correctly ordered list look shuffled. Render every one in the
+// viewer's own timezone instead.
+// "Alex <alex@example.com>" -> "Alex"; bare addresses keep the local part.
+function senderName(from) {
+  var s = String(from || '').trim();
+  var m = /^\s*"?([^"<]*?)"?\s*<([^>]+)>/.exec(s);
+  if (m && m[1].trim()) return m[1].trim();
+  if (m) return m[2].split('@')[0];
+  return s.split('@')[0] || s;
+}
+
+function deleteMsg(id, row) {
+  if (!confirm('Delete this message? This cannot be undone.')) return;
+  if (row) { row.style.opacity = '0.4'; row.style.pointerEvents = 'none'; }
+  j('/api/inbox/delete', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ id: id })
+  }).then(function (r) {
+    if (r.ok) { if (row && row.parentNode) row.parentNode.removeChild(row); loadInbox(); }
+    else { alert('Delete failed: ' + ((r.b && r.b.error) || 'unknown')); loadInbox(); }
+  });
+}
+
+function fmtDate(m) {
+  var t = m.ts || Date.parse(m.date || '');
+  if (!t || isNaN(t)) return m.date || '';
+  var d = new Date(t), now = new Date();
+  if (d.toDateString() === now.toDateString()) {
+    return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  }
+  if (d.getFullYear() === now.getFullYear()) {
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  }
+  return d.toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function loadInbox() {
+  $('#msgView').style.display = 'none';
+  $('#msgList').style.display = ''; $('#refInbox').style.display = '';
+  $('#inboxCount').style.display = ''; $('#addrCard').style.display = '';
+  loadAddresses();
+  return j('/api/inbox').then(function (r) {
+    var msgs = r.b || [];
+    var unread = msgs.filter(function (m) { return m.unread; }).length;
+    $('#unreadBadge').textContent = unread ? '(' + unread + ')' : '';
+    $('#inboxCount').textContent = msgs.length + ' message' + (msgs.length === 1 ? '' : 's');
+    if (!msgs.length) { $('#msgList').innerHTML = '<div class="card hint">Inbox is empty.</div>'; return; }
+    $('#msgList').innerHTML = msgs.map(function (m) {
+      return '<div class="mrow' + (m.unread ? ' unread' : '') + '" data-id="' + esc(m.id) + '">' +
+        '<span class="mdot"></span>' +
+        '<span class="mfrom">' + esc(senderName(m.from)) + '</span>' +
+        '<span class="msubj">' + esc(m.subject) +
+          (m.snippet ? ' <span class="msnip">&mdash; ' + esc(m.snippet) + '</span>' : '') + '</span>' +
+        '<span class="mdate">' + esc(fmtDate(m)) + '</span>' +
+        '<button class="mdel" data-del="' + esc(m.id) + '" title="Delete">&#10005;</button>' +
+      '</div>';
+    }).join('');
+    Array.prototype.forEach.call($('#msgList').querySelectorAll('.mrow'), function (el) {
+      el.onclick = function () { openMsg(el.dataset.id); };
+    });
+    Array.prototype.forEach.call($('#msgList').querySelectorAll('.mdel'), function (b) {
+      b.onclick = function (ev) {
+        ev.stopPropagation();               // do not open the message
+        deleteMsg(b.dataset.del, b.parentNode);
+      };
+    });
+  });
+}
+
+function openMsg(id) {
+  return j('/api/inbox/msg?id=' + encodeURIComponent(id)).then(function (r) {
+    var m = r.b;
+    CURRENT_MSG = m; CURRENT_ID = id;
+    $('#msgList').style.display = 'none'; $('#refInbox').style.display = 'none';
+    $('#inboxCount').style.display = 'none'; $('#addrCard').style.display = 'none';
+    $('#msgView').style.display = '';
+
+    var name = senderName(m.from);
+    var av = $('#mvAvatar');
+    av.textContent = (name[0] || '?').toUpperCase();
+    av.style.background = avatarColor(name);
+    $('#mvSubject').textContent = m.subject;
+    $('#mvFrom').textContent = m.from;
+    $('#mvMeta').textContent = 'To ' + m.to + '  \u00b7  ' + (m.date || '');
+
+    var chips = [];
+    chips.push('<span class="chip ' + (m.dkim === 'present' ? 'ok' : 'warn') + '">DKIM ' + esc(m.dkim) + '</span>');
+    if (/spf=pass/i.test(m.authResults || '')) chips.push('<span class="chip ok">SPF pass</span>');
+    if (/dmarc=pass/i.test(m.authResults || '')) chips.push('<span class="chip ok">DMARC pass</span>');
+    $('#mvAuth').innerHTML = chips.join(' ');
+
+    var wrap = $('#mvBodyWrap');
+    wrap.innerHTML = '';
+    if (m.html && m.html.trim()) {
+      // Render sender HTML in a sandboxed iframe: no scripts, no same-origin,
+      // so a hostile message cannot touch the app or the network.
+      var f = document.createElement('iframe');
+      f.setAttribute('sandbox', '');
+      f.srcdoc = '<!doctype html><meta charset="utf-8"><base target="_blank">' +
+        '<style>body{font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;color:#111;margin:14px}' +
+        'img{max-width:100%}a{color:#1a56db}</style>' + m.html;
+      wrap.appendChild(f);
+      f.onload = function () {
+        try { f.style.height = (f.contentWindow.document.body.scrollHeight + 28) + 'px'; } catch (e) { f.style.height = '600px'; }
+      };
+    } else {
+      var pre = document.createElement('pre');
+      pre.textContent = m.body || '(empty body)';
+      wrap.appendChild(pre);
+    }
+  });
+}
+
+var CURRENT_MSG = null, CURRENT_ID = null;
+
+function avatarColor(seed) {
+  var h = 0, str = String(seed || '?');
+  for (var i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) % 360;
+  return 'hsl(' + h + ',55%,45%)';
+}
+
+// "Name <addr>" / bare address -> just the address, for building a reply To.
+function senderEmail(from) {
+  var m = /<([^>]+)>/.exec(String(from || ''));
+  if (m) return m[1].trim();
+  return String(from || '').trim();
+}
+
+function quoteBody(m) {
+  var when = m.date ? 'On ' + m.date + ', ' : '';
+  var body = (m.body || '').split(String.fromCharCode(10)).map(function (l) { return '> ' + l; }).join(String.fromCharCode(10));
+  return String.fromCharCode(10) + String.fromCharCode(10) + when + senderName(m.from) + ' wrote:' +
+    String.fromCharCode(10) + body + String.fromCharCode(10);
+}
+
+function startReply() {
+  if (!CURRENT_MSG) return;
+  var m = CURRENT_MSG;
+  REPLY_TO_MSGID = m.messageId || '';
+  REPLY_REFS = (m.references ? m.references + ' ' : '') + (m.messageId || '');
+  // Reply as an address at our own domain so DKIM signs it.
+  var mine = (CFG.mailbox && CFG.domain) ? (CFG.mailbox + '@' + CFG.domain) : '';
+  $('#cFrom').value = mine || $('#cFrom').value;
+  $('#cTo').value = senderEmail(m.from);
+  var subj = m.subject || '';
+  $('#cSubj').value = /^re:/i.test(subj) ? subj : 'Re: ' + subj;
+  $('#cHtml').checked = false;
+  $('#cBody').value = quoteBody(m);
+  // switch to the Compose tab
+  Array.prototype.forEach.call(document.querySelectorAll('nav button'), function (x) { x.classList.toggle('on', x.dataset.t === 'compose'); });
+  Array.prototype.forEach.call(document.querySelectorAll('section'), function (sec) { sec.classList.toggle('on', sec.id === 'compose'); });
+  $('#cBody').focus();
+}
+var REPLY_TO_MSGID = '', REPLY_REFS = '';
+
+function loadStatus() {
+  return j('/api/status').then(function (r) {
+    var s = r.b;
+    $('#svcCard').innerHTML =
+      '<div><span class="dot ' + (s.postfix === 'active' ? 'ok' : 'bad') + '"></span> postfix: ' + esc(s.postfix) + '</div>' +
+      '<div style="margin-top:6px"><span class="dot ' + (s.opendkim === 'active' ? 'ok' : 'bad') + '"></span> opendkim: ' + esc(s.opendkim) + '</div>' +
+      (s.smtp ? '<div style="margin-top:6px"><span class="dot ' + (s.smtp.ok ? 'ok' : 'bad') + '"></span> smtpd on 127.0.0.1:25: ' +
+        (s.smtp.ok ? esc(s.smtp.banner) + ' (' + s.smtp.ms + 'ms)' : 'no greeting') + '</div>' +
+        (s.smtp.detail ? '<div class="hint" style="margin-top:4px">' + esc(s.smtp.detail) + '</div>' : '') : '') +
+      '<div style="margin-top:6px"><span class="dot ' + (s.ipMatchesConfig ? 'ok' : 'warn') + '"></span> public IP ' + esc(s.currentIp) +
+      (s.ipMatchesConfig ? ' (matches config)' : ' - config says ' + esc(s.cfg.publicIp) + ', update it or SPF will fail') + '</div>';
+    $('#q').textContent = s.queue || '(empty)';
+  });
+}
+
+function loadSent() {
+  return j('/api/sent').then(function (r) {
+    var rows = r.b;
+    $('#sentRows').innerHTML = rows.length ? rows.map(function (x) {
+      return '<tr><td class="mono">' + new Date(x.ts).toLocaleString() + '</td><td class="mono">' + esc(x.to) +
+        '</td><td>' + esc(x.subject || '') + '</td><td style="color:' + (x.ok ? 'var(--ok)' : 'var(--bad)') + '">' +
+        (x.ok ? 'sent' : 'error: ' + esc(x.error || '')) + '</td></tr>';
+    }).join('') : '<tr><td colspan="4" class="hint">Nothing sent yet.</td></tr>';
+  });
+}
+
+function loadLog() { return fetch('/api/log').then(function (r) { return r.text(); }).then(function (t) { $('#logBox').textContent = t; }); }
+
+loadCfg().then(loadInbox);
+</script>
+</body></html>
